@@ -30,6 +30,36 @@ public class Encrypter {
             for(int j = 0; j < s.length; j++){
                 System.out.println(s[j]);
             }
+
+            //concatenate the byte arrays p and s into ps
+            byte[] ps = new byte[p.length + s.length];
+            int index = 0;
+            for(int i = 0; i < p.length; i++){
+                ps[i] = p[i];
+                index++;
+            }
+            for(int j = 0; j < s.length; j++){
+                ps[index] = s[j];
+                index++;
+            }
+
+            System.out.println("print out both concatenated:");
+            for(int i = 0; i < ps.length; i++){
+                System.out.println(ps[i]);
+            }
+
+            //hash ps 200 times with SHA-256 to make AES-256 key k
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] k = digest.digest(ps); //hashed once
+                for(int i = 1; i < 200; i++){
+                    k = digest.digest(k);
+                }
+            }
+            catch (NoSuchAlgorithmException e){
+                e.printStackTrace();
+                System.exit(-1);
+            }
         }
         catch (UnsupportedEncodingException e){
             e.printStackTrace();
