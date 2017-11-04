@@ -1,9 +1,6 @@
 package main.java;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.nio.file.*;
 import java.math.BigInteger;
 import java.security.*;
@@ -11,6 +8,7 @@ import java.util.Scanner;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.bind.DatatypeConverter;
 
 public class Encrypter {
 
@@ -31,11 +29,9 @@ public class Encrypter {
                 y = y.multiply(base);
                 y = y.mod(mod);
             }
-
             base = base.multiply(base);
             base = base.mod(mod);
         }
-
         return y;
     }
 
@@ -66,13 +62,19 @@ public class Encrypter {
         return paddedArray;
     }
 
-    private static void writeByteArrayToFile(byte[] fileData, String outputPath) throws IOException {
-        FileOutputStream out = new FileOutputStream(outputPath);
-        System.out.println("Writing encrypted file to: " + outputPath);
-        out.write(fileData);
-        out.close();
+    private static void writeAssignmentHandInToFile(String outputPath,
+                                                    byte[] salt,
+                                                    byte[] iv,
+                                                    BigInteger passwordRSA,
+                                                    byte[] encryptedFileAES) throws IOException {
+        PrintWriter printwriter = new PrintWriter(outputPath, "UTF-8");
+        System.out.println("Writing assignment hand-in details to: " + outputPath);
+        printwriter.println("Salt: " + DatatypeConverter.printHexBinary(salt));
+        printwriter.println("\nIV: " + DatatypeConverter.printHexBinary(iv));
+        printwriter.println("\nRSA Encrypted Password: " + passwordRSA.toString(16));
+        printwriter.println("\nEncrypted File: " + DatatypeConverter.printHexBinary(encryptedFileAES));
+        printwriter.close();
     }
-
 
     public static void main(String [] args) {
         Scanner scan = new Scanner(System.in, "UTF-8");
@@ -80,44 +82,30 @@ public class Encrypter {
         String passwordString = scan.next();
         try {
             byte[] p = passwordString.getBytes("UTF-8"); //p = the password in a utf-8 byte array
-            //print out byte array, TODO remove before final submission
-            System.out.println("printing p");
-            for (int j = 0; j < p.length; j++){
-                System.out.println(p[j]);
-            }
 
-            //========================= generate the 128 bit salt ====================================================
+            //========================= generate the 128 bit salt ===============
             SecureRandom srng = new SecureRandom();
-            byte[] s = new byte[16];
-            srng.nextBytes(s);
-            //print out byte array, TODO remove before final submission
-            System.out.println("printing s");
-            for(int j = 0; j < s.length; j++){
-                System.out.println(s[j]);
-            }
+            byte[] saltByteArray = new byte[16];
+            srng.nextBytes(saltByteArray);
 
-            //=============== concatenate the byte arrays p and s into ps ========================================
-            byte[] ps = new byte[p.length + s.length];
+            //=============== concatenate the byte arrays p and s into ps =======
+            byte[] ps = new byte[p.length + saltByteArray.length];
             int index = 0;
             for(int j = 0; j < p.length; j++){
                 ps[j] = p[j];
                 index++;
             }
-            for(int j = 0; j < s.length; j++){
-                ps[index] = s[j];
+            for(int j = 0; j < saltByteArray.length; j++){
+                ps[index] = saltByteArray[j];
                 index++;
             }
 
-            System.out.println("print out both concatenated:");
-            for(int j = 0; j < ps.length; j++){
-                System.out.println(ps[j]);
-            }
 
-            //=========== hash ps 200 times with SHA-256 to make AES-256 key k ====================================
+            //=========== hash ps 200 times with SHA-256 to make AES-256 key k ============
             try {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                byte[] keyByteArray = digest.digest(ps); //hashed once
-                for(int j = 1; j < 200; j++){
+                byte[] keyByteArray = digest.digest(ps);      //hashed once
+                for(int j = 1; j < 200; j++){                 //hash 199 more times
                     keyByteArray = digest.digest(keyByteArray);
                 }
 
@@ -125,19 +113,15 @@ public class Encrypter {
                 byte[] ivByteArray = new byte[16];
                 srng.nextBytes(ivByteArray);
 
-                //======================== read in file and encrypt it ================================================
-                    //Read in file into byte array
+                //======================== read in file and encrypt it ==================
+                //Read in file into byte array
                 System.out.println("Enter the filepath for the file you wish to encrypt: ");
-                //TODO sanitise path
                 Path filePath = Paths.get(scan.next());
                 try {
                     byte[] fileData = Files.readAllBytes(filePath);
 
-
                     //Perform Padding
                     byte[] paddedFileData = applyPadding(fileData);
-                    System.out.println("Input file data length: " + fileData.length);
-                    System.out.println("Padded file data length: " + paddedFileData.length);
 
                     //convert key and iv byte arrays to their respective objects
                     SecretKeySpec k = new SecretKeySpec(keyByteArray, "AES");
@@ -145,31 +129,33 @@ public class Encrypter {
 
                     //Create Cipher
                     try {
-                        System.out.println("Max AES key size: " + Cipher.getMaxAllowedKeyLength("AES"));
-                        System.out.println("My key size: " + k.getEncoded().length * 8);
                         Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
                         cipher.init(Cipher.ENCRYPT_MODE, k, i);
-                        System.out.println("Block size: " + cipher.getBlockSize() * 8);
 
                         //Perform encryption
                         byte[] encryptedFileData = cipher.doFinal(paddedFileData);
 
-                        //write encrypted file
-                        System.out.println("File name: " + filePath.getFileName().toString());
-                        String outputPath = filePath.getParent()
-                                + File.separator
-                                + "ENCRYPTED-"
-                                +  filePath.getFileName();
-                        writeByteArrayToFile(encryptedFileData, outputPath);
+                        //Debug Byte Length Print Out
+                        System.out.println("Input file data length: " + fileData.length + " bytes");
+                        System.out.println("Padded file data length: " + paddedFileData.length + " bytes");
+                        System.out.println("Encrypted file data length: " + encryptedFileData.length + " bytes");
 
-                    //====================== Perform RSA on password =========================================
+
+
+
+                        //====================== Perform RSA on password =========================================
                         //convert password (p) byte array to BigInteger
                         BigInteger passwordBigInt = new BigInteger(p);
 
                         //perform RSA encryption
                         BigInteger rsaEncryptedPassword = performRSA(passwordBigInt, E, N); //using constant E and N from the assignment description
 
-                        System.out.println("Password encrypted by RSA: " + rsaEncryptedPassword.toString(16));
+                        //============= Write all assignment hand in info to a file ==========================
+                        String outputFilePath = filePath.getParent() +
+                                File.separator +
+                                "assignment-output-for-" +
+                                filePath.getFileName();
+                        writeAssignmentHandInToFile(outputFilePath, saltByteArray, ivByteArray, rsaEncryptedPassword, encryptedFileData);
 
 
 
@@ -189,7 +175,6 @@ public class Encrypter {
                         e.printStackTrace();
                         System.exit(-1);
                     }
-
                 }
                 catch(IOException e){
                     e.printStackTrace();
