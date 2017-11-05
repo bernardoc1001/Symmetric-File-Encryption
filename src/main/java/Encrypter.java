@@ -62,15 +62,24 @@ public class Encrypter {
         return paddedArray;
     }
 
+    private static void writeByteArrayToFile(byte[] fileData, String outputPath) throws IOException{
+        FileOutputStream out = new FileOutputStream(outputPath);
+        System.out.println("Writing to file: " + outputPath);
+        out.write(fileData);
+        out.close();
+    }
+
     private static void writeAssignmentHandInToFile(String outputPath,
                                                     byte[] salt,
                                                     byte[] iv,
+                                                    byte[] unencryptedAESKey,
                                                     BigInteger passwordRSA,
                                                     byte[] encryptedFileAES) throws IOException {
         PrintWriter printwriter = new PrintWriter(outputPath, "UTF-8");
         System.out.println("Writing assignment hand-in details to: " + outputPath);
         printwriter.println("Salt: " + DatatypeConverter.printHexBinary(salt));
         printwriter.println("\nIV: " + DatatypeConverter.printHexBinary(iv));
+        printwriter.println("\nUnencrypted AES key: " + DatatypeConverter.printHexBinary(unencryptedAESKey));
         printwriter.println("\nRSA Encrypted Password: " + passwordRSA.toString(16));
         printwriter.println("\nEncrypted File: " + DatatypeConverter.printHexBinary(encryptedFileAES));
         printwriter.close();
@@ -105,7 +114,7 @@ public class Encrypter {
             try {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 byte[] keyByteArray = digest.digest(ps);      //hashed once
-                for(int j = 1; j < 200; j++){                 //hash 199 more times
+                for(int j = 0; j < 199; j++){                 //hash 199 more times
                     keyByteArray = digest.digest(keyByteArray);
                 }
 
@@ -135,6 +144,13 @@ public class Encrypter {
                         //Perform encryption
                         byte[] encryptedFileData = cipher.doFinal(paddedFileData);
 
+                        //Write encrypted data to file
+                        String outputPath = filePath.getParent() +
+                                File.separator +
+                                "ENCRYPTED-" +
+                                filePath.getFileName();
+                        writeByteArrayToFile(encryptedFileData, outputPath);
+
                         //Debug Byte Length Print Out
                         System.out.println("Input file data length: " + fileData.length + " bytes");
                         System.out.println("Padded file data length: " + paddedFileData.length + " bytes");
@@ -151,11 +167,9 @@ public class Encrypter {
                         BigInteger rsaEncryptedPassword = performRSA(passwordBigInt, E, N); //using constant E and N from the assignment description
 
                         //============= Write all assignment hand in info to a file ==========================
-                        String outputFilePath = filePath.getParent() +
-                                File.separator +
-                                "assignment-output-for-" +
-                                filePath.getFileName();
-                        writeAssignmentHandInToFile(outputFilePath, saltByteArray, ivByteArray, rsaEncryptedPassword, encryptedFileData);
+                        String outputFilePath = filePath.toString() + "-assignment-output";
+
+                        writeAssignmentHandInToFile(outputFilePath, saltByteArray, ivByteArray,keyByteArray, rsaEncryptedPassword, encryptedFileData);
 
 
 
